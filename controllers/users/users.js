@@ -45,6 +45,8 @@ const registerCtrl = async(req, res, next) =>{
 // login
 const loginCtrl = async(req, res, next) =>{
     const {email, password} = req.body
+ 
+    
 
     if (!email || !password) {
         return next(appErr('Email and Password field are requierd'))
@@ -66,6 +68,11 @@ const loginCtrl = async(req, res, next) =>{
             return next(appErr('invalid login credentials'))
         }
 
+        // save the user in session
+        req.session.userAuth = userFound._id;
+        console.log(req.session);
+        
+
 
         res.json({
             status: "success",
@@ -78,9 +85,14 @@ const loginCtrl = async(req, res, next) =>{
 // userDetails
 const userDetailsCtrl = async(req, res) =>{
     try{
+        // get userID from params
+        const userId = req.params.id
+        // find user
+        const user = await User.findById(userId)
+        
         res.json({
             status: "success",
-            user: "User Details"
+            data: user
         })
     } catch (error) {
         res.json(error)
@@ -90,9 +102,13 @@ const userDetailsCtrl = async(req, res) =>{
 // profileDetails
 const profileDetailsCtrl = async(req, res) =>{
     try{
+        // get the login user
+        const userID = req.session.userAuth
+        // find user
+        const user = await User.findById(userID)
         res.json({
             status: "success",
-            user: "User profile Details"
+            data: user
         })
     } catch (error) {
         res.json(error)
@@ -124,26 +140,60 @@ const coverPhotoCtrl =  async(req, res) =>{
 }
 
 // update password 
-const updatePassCtrl = async(req, res) =>{
+const updatePassCtrl = async(req, res, next) =>{
+    const {password} = req.body
     try{
-        res.json({
-            status: "success",
-            user: "User password update"
-        })
+        // check pasword is updateing then hash
+        if(password){
+            const salt = await bcypt.genSalt(10)
+            const passwordHashed = await bcypt.hash(password, salt)
+            // update user
+            await User.findByIdAndUpdate(req.params.id,
+                {
+                    password: passwordHashed
+                },
+                {
+                    new: true
+                }
+            )
+
+            res.json({
+                status: "success",
+                user: "Password has been changed successfully"
+            })
+        }
+ 
     } catch (error) {
-        res.json(error)
+        return next(appErr("Please provide password field"))
     }
 }
 
 // user Update
-const userUpdateCtrl = async(req, res) =>{
+const userUpdateCtrl = async(req, res, next) =>{
+    const {fullname, email} = req.body
     try{
+        //check email is taken
+        const emailTaken = await User.findOne({email})
+        if (emailTaken) {
+            return next(appErr("email is taken", 400))
+        }
+        // update user otherwise
+        const user = await User.findByIdAndUpdate(req.params.id,
+            {
+                fullname,
+                email
+            },
+            {
+                new: true
+            }
+        )
+
         res.json({
             status: "success",
-            user: "User update"
+            data: user
         })
     } catch (error) {
-        res.json(error)
+        res.json(next(appErr(error.message)))
     }
 }
 
